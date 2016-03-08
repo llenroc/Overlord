@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 GO=go
-BIN=$(CURDIR)/bin
+BINDIR=$(CURDIR)/bin
 BUILD=$(CURDIR)/build
 DEPS?=true
 STATIC?=false
@@ -16,19 +16,19 @@ endif
 all: ghost overlordd
 
 deps:
-	mkdir -p $(BIN)
+	mkdir -p $(BINDIR)
 	if $(DEPS); then \
 		cd $(CURDIR)/overlord; \
 		$(GO) get -d .; \
 	fi
 
 overlordd: deps
-	cd $(CURDIR)/cmd/$@ && GOBIN=$(BIN) $(GO) install $(LDFLAGS) .
-	rm -f $(BIN)/app
-	ln -s $(CURDIR)/overlord/app $(BIN)
+	cd $(CURDIR)/cmd/$@ && GOBIN=$(BINDIR) $(GO) install $(LDFLAGS) .
+	rm -f $(BINDIR)/app
+	ln -s $(CURDIR)/overlord/app $(BINDIR)
 
 ghost: deps
-	cd $(CURDIR)/cmd/$@ && GOBIN=$(BIN) $(GO) install $(LDFLAGS) .
+	cd $(CURDIR)/cmd/$@ && GOBIN=$(BINDIR) $(GO) install $(LDFLAGS) .
 
 py-bin:
 	mkdir -p $(BUILD)
@@ -42,9 +42,9 @@ py-bin:
 	pyinstaller --onefile $(CURDIR)/scripts/ovl.py; \
 	pyinstaller --onefile $(CURDIR)/scripts/ghost.py
 	# Move built binary to bin
-	mv $(BUILD)/dist/ovl $(BIN)/ovl.py.bin
-	mv $(BUILD)/dist/ghost $(BIN)/ghost.py.bin
+	mv $(BUILD)/dist/ovl $(BINDIR)/ovl.py.bin
+	mv $(BUILD)/dist/ghost $(BINDIR)/ghost.py.bin
 
 clean:
-	rm -f $(BIN)/ghost $(BIN)/overlordd $(BUILD) \
-		$(BIN)/ghost.py.bin $(BIN)/ovl.py.bin
+	rm -rf $(BINDIR)/ghost $(BINDIR)/overlordd $(BUILD) \
+		$(BINDIR)/ghost.py.bin $(BINDIR)/ovl.py.bin

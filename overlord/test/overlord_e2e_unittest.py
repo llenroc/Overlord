@@ -8,17 +8,14 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 import urllib
 
 from ws4py.client import WebSocketBaseClient
 
-import factory_common  # pylint: disable=unused-import
-from cros.factory.utils import net_utils
-from cros.factory.utils import sync_utils
 
-
-_HOST = '127.0.0.1'
+_HOST = '127.0.0.1:9000'
 _INCREMENT = 42
 
 
@@ -37,7 +34,7 @@ class TestOverlord(unittest.TestCase):
     basedir = os.path.dirname(__file__)
     cls.bindir = tempfile.mkdtemp()
     subprocess.call('make -C %s BINDIR=%s' % (
-        os.path.join(basedir, '..'), cls.bindir), shell=True)
+        os.path.join(basedir, '../..'), cls.bindir), shell=True)
 
   @classmethod
   def tearDownClass(cls):
@@ -47,18 +44,10 @@ class TestOverlord(unittest.TestCase):
   def setUp(self):
     self.basedir = os.path.dirname(__file__)
     bindir = self.__class__.bindir
-    factorydir = os.path.normpath(os.path.join(self.basedir, '../../../..'))
+    scriptdir = os.path.normpath(os.path.join(self.basedir, '../../scripts'))
 
     env = os.environ.copy()
     env['SHELL'] = os.path.join(os.getcwd(), self.basedir, 'test_shell.sh')
-
-    # set ports for overlord to bind
-    overlord_http_port = net_utils.FindUnusedPort()
-    self.host = '%s:%d' % (_HOST, overlord_http_port)
-    env['OVERLORD_PORT'] = str(net_utils.FindUnusedPort())
-    env['OVERLORD_LD_PORT'] = str(net_utils.FindUnusedPort())
-    env['OVERLORD_HTTP_PORT'] = str(overlord_http_port)
-    env['GHOST_RPC_PORT'] = str(net_utils.FindUnusedPort())
 
     # Launch overlord
     self.ovl = subprocess.Popen(['%s/overlordd' % bindir, '-no-auth'], env=env)
@@ -69,7 +58,7 @@ class TestOverlord(unittest.TestCase):
                                      '-no-rpc-server', '-tls=n'], env=env)
 
     # Launch python implementation of ghost
-    self.pyghost = subprocess.Popen(['%s/py/tools/ghost.py' % factorydir,
+    self.pyghost = subprocess.Popen(['%s/ghost.py' % scriptdir,
                                      '--rand-mid', '--no-lan-disc',
                                      '--no-rpc-server', '--tls=n'],
                                     env=env)
@@ -83,11 +72,13 @@ class TestOverlord(unittest.TestCase):
         return False
 
     # Wait for clients to connect
-    try:
-      sync_utils.WaitFor(CheckClient, 30)
-    except Exception:
+    for i in range(300):
+      if CheckClient():
+        break
+      time.sleep(0.1)
+    else:
       self.tearDown()
-      raise
+      raise RuntimeError('client did not connect in time')
 
   def tearDown(self):
     self.ovl.kill()
@@ -98,7 +89,7 @@ class TestOverlord(unittest.TestCase):
     self.pyghost.kill()
 
   def _GetJSON(self, path):
-    return json.loads(urllib.urlopen('http://' + self.host + path).read())
+    return json.loads(urllib.urlopen('http://' + _HOST + path).read())
 
   def testWebAPI(self):
     # Test /api/app/list
@@ -136,7 +127,7 @@ class TestOverlord(unittest.TestCase):
     answer = subprocess.check_output(['uname', '-r'])
 
     for client in clients:
-      ws = TestClient('ws://' + self.host + '/api/agent/shell/%s' %
+      ws = TestClient('ws://' + _HOST + '/api/agent/shell/%s' %
                       urllib.quote(client['mid']) + '?command=' +
                       urllib.quote('uname -r'))
       ws.connect()
@@ -193,7 +184,7 @@ class TestOverlord(unittest.TestCase):
     assert len(clients) > 0
 
     for client in clients:
-      ws = TestClient('ws://' + self.host + '/api/agent/tty/%s' %
+      ws = TestClient('ws://' + _HOST + '/api/agent/tty/%s' %
                       urllib.quote(client['mid']))
       ws.connect()
       try:
